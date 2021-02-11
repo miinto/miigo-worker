@@ -4,17 +4,29 @@ import (
 	"errors"
 	"fmt"
 	"github.com/streadway/amqp"
+	"math/rand"
 	"miinto.com/miigo/worker/internal/channel"
-	"miinto.com/miigo/worker/internal/handler"
-	"miinto.com/miigo/worker/pkg/command"
+	"miinto.com/miigo/worker/pkg"
+	"miinto.com/miigo/worker/internal/command"
 	"reflect"
 	"time"
 )
 
-func StartSingleMode(channels []channel.ChannelEntry, handlers map[string] handler.HandlerEntry) error {
-	fmt.Printf("miigo-worker - starting single channel mode [%d] with %d handlers ...\n", len(channels), len(handlers))
+type poolEntry struct {
+	name string
+	pool []amqp.Delivery
+}
 
-	ch := channels[0]
+type MasterProcessSetup struct {
+	Channels []channel.ChannelEntry
+	Handlers map[string]interfaces.Handler
+	Logger interfaces.Logger
+}
+
+func StartSingleMode(setup MasterProcessSetup) error {
+	setup.Logger.Log(fmt.Sprintf("Starting single channel mode [%v] with %d handlers ...", setup.Channels[0].QueueName, len(setup.Handlers)),"LIMITED")
+
+	ch := setup.Channels[0]
 	_ = ch.AMQPChannel.Qos(1, 0,false)
 	delivery, _ := ch.AMQPChannel.Consume(ch.QueueName, ch.ConsumerTag,false, false, false, false, nil)
 
@@ -23,9 +35,9 @@ func StartSingleMode(channels []channel.ChannelEntry, handlers map[string] handl
 		var result bool
 		var err error
 		for d := range delivery {
-			result, err = handleIncommingCommand(d, handlers)
+			result, err = handleIncommingCommand(d, setup)
 			if err != nil {
-				fmt.Println(err.Error())
+				setup.Logger.Log(err.Error(),"LIMITED")
 				d.Ack(false)
 				continue
 			}
@@ -42,17 +54,12 @@ func StartSingleMode(channels []channel.ChannelEntry, handlers map[string] handl
 	return nil
 }
 
-type poolEntry struct {
-	name string
-	pool []amqp.Delivery
-}
-
-func StartMultiMode(channels []channel.ChannelEntry, handlers map[string] handler.HandlerEntry) error {
-	fmt.Printf("miigo-worker - starting multi channel mode [%d] with %d handlers ...\n", len(channels), len(handlers))
+func StartMultiMode(setup MasterProcessSetup) error {
+	setup.Logger.Log(fmt.Sprintf("Starting multi channel mode [%d] with %d handlers ...", len(setup.Channels), len(setup.Handlers)), "LIMITED")
 
 	var del <-chan amqp.Delivery
 	delChans := make([]<-chan amqp.Delivery, 0)
-	for _, ch := range channels {
+	for _, ch := range setup.Channels {
 		_ = ch.AMQPChannel.Qos(2, 0,false)
 		del, _ = ch.AMQPChannel.Consume(ch.QueueName, ch.ConsumerTag,false, false, false, false, nil)
 
@@ -64,7 +71,7 @@ func StartMultiMode(channels []channel.ChannelEntry, handlers map[string] handle
 	go func() {
 		messagePool := make([]poolEntry, 0)
 
-		for _, cfgE := range channels {
+		for _, cfgE := range setup.Channels {
 			messagePool = append(messagePool, poolEntry{
 				cfgE.QueueName,
 				make([]amqp.Delivery, 0),
@@ -81,12 +88,33 @@ func StartMultiMode(channels []channel.ChannelEntry, handlers map[string] handle
 		cases[len(cases)-1] = reflect.SelectCase{Dir: reflect.SelectDefault}
 
 		for {
-			index, command, _ := reflect.Select(cases)
+			var cmd amqp.Delivery
+			index, cmdVal, _ := reflect.Select(cases)
+			// default select case - no messages available in any channels
 			if index == (len(cases)-1) {
-				execute(messagePool, handlers)
+				for queue, _ := range messagePool {
+					if len(messagePool[queue].pool) > 0 {
+						cmd = messagePool[queue].pool[0]
+						messagePool[queue].pool = messagePool[queue].pool[1:]
+
+						result, err := handleIncommingCommand(cmd, setup)
+						if err != nil {
+							setup.Logger.Log(err.Error(),"LIMITED")
+							cmd.Ack(false)
+							break
+						}
+
+						if result == true {
+							cmd.Ack(false)
+						} else {
+							cmd.Nack(false, false)
+						}
+						break
+					}
+				}
+			// a channel was selected - add the message to the message pool container
 			} else {
-				fmt.Println(messagePool[index].name)
-				messagePool[index].pool = append(messagePool[index].pool, command.Interface().(amqp.Delivery))
+				messagePool[index].pool = append(messagePool[index].pool, cmdVal.Interface().(amqp.Delivery))
 			}
 		}
 	}()
@@ -95,41 +123,49 @@ func StartMultiMode(channels []channel.ChannelEntry, handlers map[string] handle
 	return nil
 }
 
-func execute (messagePool []poolEntry, handlers map[string] handler.HandlerEntry) {
-	var cmd amqp.Delivery
-	for queue, _ := range messagePool {
-		if len(messagePool[queue].pool) > 0 {
-			cmd = messagePool[queue].pool[0]
-			messagePool[queue].pool = messagePool[queue].pool[1:]
-			handleIncommingCommand(cmd, handlers)
-			cmd.Ack(false)
-			//time.Sleep(10*time.Millisecond)
-			break
+func handleIncommingCommand(d amqp.Delivery, setup MasterProcessSetup) (bool,error) {
+	cmd, err := command.NewGenericCommand(string(d.Body))
+	setup.Logger.SetTempPrefix(getHID())
+
+	if err != nil {
+		return false, errors.New("ERROR: Invalid command received (NOT JSON) ["+err.Error()+"]")
+	}
+
+	if cmd.GetType() == "" {
+		return false, errors.New("ERROR: Invalid command received (Not Maleficarum format)")
+	}
+
+	if hE,ok := setup.Handlers[cmd.GetType()]; ok {
+		setup.Logger.Log(fmt.Sprintf("Received command [" + cmd.GetType() + "] [" + string(d.Body) + "]"),"LIMITED")
+
+		result, err := hE.Validate(cmd.GetPayload())
+		if (result == true) {
+			setup.Logger.Log("Command validation successful - execution going forward.","LIMITED")
+		} else {
+			setup.Logger.Log("Command validation failed - execution halted and skipped.","LIMITED")
+			return result, err
 		}
+
+		start := float64(time.Now().UnixNano())
+		result, err = hE.Handle(cmd, setup.Logger)
+		end := float64(time.Now().UnixNano())
+
+		setup.Logger.Log(
+			fmt.Sprintf("Command completed with result [%v]. Exec time [%v]", result, (end / float64(time.Second) - start / float64(time.Second))),
+			"LIMITED")
+
+		return result, err
+	} else {
+		return false, errors.New("ERROR: Invalid command received (Handler not registered) [" + cmd.GetType() + "]")
 	}
 }
 
-func handleIncommingCommand(d amqp.Delivery, handlers map[string] handler.HandlerEntry) (bool,error) {
-	var cmd *command.Command
-	var err error
-	cmd, err = command.CreateFromJson(string(d.Body))
+func getHID() string {
+	var letters = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789")
 
-	if err != nil {
-		return false, errors.New("miigo-worker - invalid command received (NOT JSON) ["+err.Error()+"]")
+	s := make([]rune, 16)
+	for i := range s {
+		s[i] = letters[rand.Intn(len(letters))]
 	}
-
-	if cmd.Type == "" {
-		return false, errors.New("invalid command received (Not Maleficarum format)")
-	}
-
-	if hE,ok := handlers[cmd.Type]; ok {
-		fmt.Println("miigo-worker - received command [" + cmd.Type + "] [" + string(d.Body) + "]")
-		start := float64(time.Now().UnixNano())
-		result, err := hE.Handler(cmd)
-		end := float64(time.Now().UnixNano())
-		fmt.Printf("miigo-worker - command completed with result [%v]. Exec time [%v]\n", result, (end / float64(time.Second) - start / float64(time.Second)))
-		return result, err
-	} else {
-		return false, errors.New("miigo-worker - invalid command received (Handler not registered) [" + cmd.Type + "]")
-	}
+	return "HID-"+string(s)
 }

@@ -1,21 +1,23 @@
 package main
 
 import (
-	"encoding/json"
+	"fmt"
 	"github.com/streadway/amqp"
 	"miinto.com/miigo/worker"
+	"miinto.com/miigo/worker/examples/multi_mode/internal/handler"
+	"miinto.com/miigo/worker/examples/multi_mode/internal/logger"
 	"miinto.com/miigo/worker/internal/channel"
-	"miinto.com/miigo/worker/pkg/command"
-	"time"
 )
-
-type basicCommandPayload struct {
-	Foo string					`json:"foo"`
-}
 
 func main() {
 	w := worker.NewWorkerService()
-	w.RegisterHandler("Command\\Test\\HelloWorld", handleBasicCommand)
+	w.RegisterHandler("Command\\BasicCommand", &handler.BasicCommandHandler{})
+	w.RegisterHandler("Command\\ComplexCommand", &handler.ComplexCommandHandler{})
+
+	logger := &logger.Logger{}
+	logger.SetMainPrefix("miigo-worker-singlemode-example")
+	logger.SetTempPrefix("STARTUP MODE")
+	w.RegisterLogger(logger)
 
 	con, _ := amqp.Dial("amqp://miinto:miinto@localhost:5672/")
 	defer con.Close()
@@ -24,7 +26,7 @@ func main() {
 	defer ch.Close()
 
 	w.RegisterChannel(channel.ChannelEntry{
-		QueueName: "go-generic-1-0",
+		QueueName: "go-generic-0-0",
 		ConsumerTag: "miigo-worker-alpha",
 		AMQPChannel: ch,
 	})
@@ -36,18 +38,13 @@ func main() {
 	defer ch.Close()
 
 	w.RegisterChannel(channel.ChannelEntry{
-		QueueName: "go-generic-0-0",
+		QueueName: "go-generic-1-0",
 		ConsumerTag: "miigo-worker-alpha",
 		AMQPChannel: ch,
 	})
 
-	w.Start()
-}
-
-func handleBasicCommand(cmd *command.Command) (bool,error) {
-	var payload basicCommandPayload
-	_ = json.Unmarshal([]byte(cmd.Payload), &payload)
-
-	time.Sleep(10*time.Millisecond)
-	return true, nil
+	err := w.Start()
+	if err != nil {
+		fmt.Println(err.Error())
+	}
 }

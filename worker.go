@@ -2,15 +2,17 @@ package worker
 
 import (
 	"errors"
+	"math/rand"
 	"miinto.com/miigo/worker/internal/channel"
-	"miinto.com/miigo/worker/internal/handler"
 	"miinto.com/miigo/worker/internal/process"
-	"miinto.com/miigo/worker/pkg/command"
+	"miinto.com/miigo/worker/pkg"
+	"time"
 )
 
 type Worker struct {
-	handlers map[string]handler.HandlerEntry
+	handlers map[string]interfaces.Handler
 	channels []channel.ChannelEntry
+	logger interfaces.Logger
 }
 
 func NewWorkerService() *Worker {
@@ -22,10 +24,27 @@ func (w *Worker) Start() error {
 		return errors.New("miigo-worker - no channels to listen on, start aborted")
 	}
 
+	if len(w.handlers) == 0 {
+		return errors.New("miigo-worker - no handlers registered, start aborted")
+	}
+
+	if w.logger == nil {
+		return errors.New("miigo-worker - no logger registered, start aborted")
+	}
+
+	rand.Seed(time.Now().Unix())
 	if len(w.channels) == 1 {
-		process.StartSingleMode(w.channels, w.handlers)
+		process.StartSingleMode(process.MasterProcessSetup{
+			Channels: w.channels,
+			Handlers: w.handlers,
+			Logger: w.logger,
+		})
 	} else {
-		process.StartMultiMode(w.channels, w.handlers)
+		process.StartMultiMode(process.MasterProcessSetup{
+			Channels: w.channels,
+			Handlers: w.handlers,
+			Logger: w.logger,
+		})
 	}
 
 	return nil
@@ -39,17 +58,19 @@ func (w *Worker) RegisterChannel(ch channel.ChannelEntry) {
 	w.channels = append(w.channels, ch)
 }
 
-func (w *Worker) RegisterHandler(hLabel string, hFunction func(command *command.Command) (bool, error)) error {
+func (w *Worker) RegisterHandler(hLabel string, hStruct interfaces.Handler) error {
 	if w.handlers == nil {
-		w.handlers = make(map[string]handler.HandlerEntry, 0)
+		w.handlers = make(map[string]interfaces.Handler, 0)
 	}
 
 	if _, ok := w.handlers[hLabel]; ok {
 		return errors.New("miigo-worker - handler label already in use")
 	}
 
-	w.handlers[hLabel] = handler.HandlerEntry{
-		Handler: hFunction,
-	}
+	w.handlers[hLabel] = hStruct
 	return nil
+}
+
+func (w *Worker) RegisterLogger(logger interfaces.Logger) {
+	w.logger = logger
 }
