@@ -50,11 +50,16 @@ func (w *Worker) Start() error {
 	return nil
 }
 
-func (w *Worker) RegisterChannel(ch channel.ChannelEntry) {
+func (w *Worker) RegisterChannel(queueName string, consumerTag string, chann interfaces.Channel) {
 	if w.channels == nil {
 		w.channels = make([]channel.ChannelEntry, 0)
 	}
 
+	ch := channel.ChannelEntry{
+		QueueName: queueName,
+		ConsumerTag: consumerTag,
+		AMQPChannel: chann,
+	}
 	w.channels = append(w.channels, ch)
 }
 

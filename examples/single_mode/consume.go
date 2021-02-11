@@ -6,7 +6,6 @@ import (
 	"miinto.com/miigo/worker"
 	"miinto.com/miigo/worker/examples/single_mode/internal/handler"
 	"miinto.com/miigo/worker/examples/single_mode/internal/logger"
-	"miinto.com/miigo/worker/internal/channel"
 )
 
 func main() {
@@ -25,11 +24,7 @@ func main() {
 	ch, _ := con.Channel()
 	defer ch.Close()
 
-	w.RegisterChannel(channel.ChannelEntry{
-		QueueName: "go-generic-0-0",
-		ConsumerTag: "miigo-worker-alpha",
-		AMQPChannel: ch,
-	})
+	w.RegisterChannel("go-generic-0-0", "miigo-worker-singlemode-example", ch)
 
 	err := w.Start()
 	if err != nil {

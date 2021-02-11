@@ -6,8 +6,8 @@ import (
 	"github.com/streadway/amqp"
 	"math/rand"
 	"miinto.com/miigo/worker/internal/channel"
-	"miinto.com/miigo/worker/pkg"
 	"miinto.com/miigo/worker/internal/command"
+	"miinto.com/miigo/worker/pkg"
 	"reflect"
 	"time"
 )
@@ -24,7 +24,10 @@ type MasterProcessSetup struct {
 }
 
 func StartSingleMode(setup MasterProcessSetup) error {
-	setup.Logger.Log(fmt.Sprintf("Starting single channel mode [%v] with %d handlers ...", setup.Channels[0].QueueName, len(setup.Handlers)),"LIMITED")
+	setup.Logger.Log(fmt.Sprintf("Starting single channel mode [queue name: %v] with %d handlers ...", setup.Channels[0].QueueName, len(setup.Handlers)),"LIMITED")
+	for index, _ := range setup.Handlers {
+		setup.Logger.Log("Registered handler: ["+index+"]","LIMITED")
+	}
 
 	ch := setup.Channels[0]
 	_ = ch.AMQPChannel.Qos(1, 0,false)
@@ -56,6 +59,12 @@ func StartSingleMode(setup MasterProcessSetup) error {
 
 func StartMultiMode(setup MasterProcessSetup) error {
 	setup.Logger.Log(fmt.Sprintf("Starting multi channel mode [%d] with %d handlers ...", len(setup.Channels), len(setup.Handlers)), "LIMITED")
+	for index, _ := range setup.Handlers {
+		setup.Logger.Log("Registered handler: ["+index+"]","LIMITED")
+	}
+	for _, val := range setup.Channels {
+		setup.Logger.Log("Listening on queue: ["+val.QueueName+"]","LIMITED")
+	}
 
 	var del <-chan amqp.Delivery
 	delChans := make([]<-chan amqp.Delivery, 0)

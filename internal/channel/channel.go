@@ -1,9 +1,9 @@
 package channel
 
-import "github.com/streadway/amqp"
+import interfaces "miinto.com/miigo/worker/pkg"
 
 type ChannelEntry struct {
 	QueueName string
 	ConsumerTag string
-	AMQPChannel *amqp.Channel
+	AMQPChannel interfaces.Channel
 }
