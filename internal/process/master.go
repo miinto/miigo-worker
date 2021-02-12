@@ -24,9 +24,9 @@ type MasterProcessSetup struct {
 }
 
 func StartSingleMode(setup MasterProcessSetup) error {
-	setup.Logger.Log(fmt.Sprintf("Starting single channel mode [queue name: %v] with %d handlers ...", setup.Channels[0].QueueName, len(setup.Handlers)),"LIMITED")
+	setup.Logger.LogLimited(fmt.Sprintf("Starting single channel mode [queue name: %v] with %d handlers ...", setup.Channels[0].QueueName, len(setup.Handlers)))
 	for index, _ := range setup.Handlers {
-		setup.Logger.Log("Registered handler: ["+index+"]","LIMITED")
+		setup.Logger.LogLimited("Registered handler: ["+index+"]")
 	}
 
 	ch := setup.Channels[0]
@@ -40,7 +40,7 @@ func StartSingleMode(setup MasterProcessSetup) error {
 		for d := range delivery {
 			result, err = handleIncommingCommand(d, setup)
 			if err != nil {
-				setup.Logger.Log(err.Error(),"LIMITED")
+				setup.Logger.LogLimited(err.Error())
 				d.Ack(false)
 				continue
 			}
@@ -58,12 +58,12 @@ func StartSingleMode(setup MasterProcessSetup) error {
 }
 
 func StartMultiMode(setup MasterProcessSetup) error {
-	setup.Logger.Log(fmt.Sprintf("Starting multi channel mode [%d] with %d handlers ...", len(setup.Channels), len(setup.Handlers)), "LIMITED")
+	setup.Logger.LogLimited(fmt.Sprintf("Starting multi channel mode [%d] with %d handlers ...", len(setup.Channels), len(setup.Handlers)))
 	for index, _ := range setup.Handlers {
-		setup.Logger.Log("Registered handler: ["+index+"]","LIMITED")
+		setup.Logger.LogLimited("Registered handler: ["+index+"]")
 	}
 	for _, val := range setup.Channels {
-		setup.Logger.Log("Listening on queue: ["+val.QueueName+"]","LIMITED")
+		setup.Logger.LogLimited("Listening on queue: ["+val.QueueName+"]")
 	}
 
 	var del <-chan amqp.Delivery
@@ -108,7 +108,7 @@ func StartMultiMode(setup MasterProcessSetup) error {
 
 						result, err := handleIncommingCommand(cmd, setup)
 						if err != nil {
-							setup.Logger.Log(err.Error(),"LIMITED")
+							setup.Logger.LogLimited(err.Error())
 							cmd.Ack(false)
 							break
 						}
@@ -145,13 +145,13 @@ func handleIncommingCommand(d amqp.Delivery, setup MasterProcessSetup) (bool,err
 	}
 
 	if hE,ok := setup.Handlers[cmd.GetType()]; ok {
-		setup.Logger.Log(fmt.Sprintf("Received command [" + cmd.GetType() + "] [" + string(d.Body) + "]"),"LIMITED")
+		setup.Logger.LogLimited(fmt.Sprintf("Received command [" + cmd.GetType() + "] [" + string(d.Body) + "]"))
 
 		result, err := hE.Validate(cmd.GetPayload())
 		if (result == true) {
-			setup.Logger.Log("Command validation successful - execution going forward.","LIMITED")
+			setup.Logger.LogLimited("Command validation successful - execution going forward.")
 		} else {
-			setup.Logger.Log("Command validation failed - execution halted and skipped.","LIMITED")
+			setup.Logger.LogLimited("Command validation failed - execution halted and skipped.")
 			return result, err
 		}
 
@@ -159,9 +159,7 @@ func handleIncommingCommand(d amqp.Delivery, setup MasterProcessSetup) (bool,err
 		result, err = hE.Handle(cmd, setup.Logger)
 		end := float64(time.Now().UnixNano())
 
-		setup.Logger.Log(
-			fmt.Sprintf("Command completed with result [%v]. Exec time [%v]", result, (end / float64(time.Second) - start / float64(time.Second))),
-			"LIMITED")
+		setup.Logger.LogLimited(fmt.Sprintf("Command completed with result [%v]. Exec time [%v]", result, (end / float64(time.Second) - start / float64(time.Second))))
 
 		return result, err
 	} else {

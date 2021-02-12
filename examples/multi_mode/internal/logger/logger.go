@@ -15,7 +15,12 @@ func (l *Logger) SetTempPrefix(prefix string) {
 	l.tempPrefix = prefix
 }
 
-func (l *Logger) Log(msg string, level string) {
-	message := "["+l.permPrefix+"]["+l.tempPrefix+"] :: "+msg
+func (l *Logger) LogLimited(msg string) {
+	message := "["+l.permPrefix+"]["+l.tempPrefix+"] `LIMITED` :: "+msg
+	fmt.Println(message)
+}
+
+func (l *Logger) LogVerbose(msg string) {
+	message := "["+l.permPrefix+"]["+l.tempPrefix+"] `VERBOSE` :: "+msg
 	fmt.Println(message)
 }
