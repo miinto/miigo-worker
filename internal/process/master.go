@@ -141,7 +141,7 @@ func handleIncommingCommand(d amqp.Delivery, setup MasterProcessSetup) (bool,err
 	}
 
 	if cmd.GetType() == "" {
-		return false, errors.New("ERROR: Invalid command received (Not Maleficarum format)")
+		return false, errors.New("ERROR: Invalid command received (Not Miigo format)")
 	}
 
 	if hE,ok := setup.Handlers[cmd.GetType()]; ok {
