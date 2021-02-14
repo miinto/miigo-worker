@@ -34,13 +34,15 @@ func (w *Worker) Start() error {
 
 	rand.Seed(time.Now().Unix())
 	if len(w.channels) == 1 {
-		process.StartSingleMode(process.MasterProcessSetup{
+		p := &process.SingleModeProcess{}
+		p.Start(process.ProcessSetup{
 			Channels: w.channels,
 			Handlers: w.handlers,
 			Logger: w.logger,
 		})
 	} else {
-		process.StartMultiMode(process.MasterProcessSetup{
+		p := &process.MultiModeProcess{}
+		p.Start(process.ProcessSetup{
 			Channels: w.channels,
 			Handlers: w.handlers,
 			Logger: w.logger,
