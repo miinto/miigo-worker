@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"github.com/streadway/amqp"
 	"math/rand"
-	"miinto.com/miigo/worker/internal/channel"
-	"miinto.com/miigo/worker/internal/command"
-	"miinto.com/miigo/worker/pkg"
+	"github.com/miinto/miigo-worker/internal/channel"
+	"github.com/miinto/miigo-worker/internal/command"
+	"github.com/miinto/miigo-worker/pkg"
 	"time"
 )
 

@@ -2,8 +2,8 @@ package process
 
 import (
 	"github.com/streadway/amqp"
-	miigo_channel "miinto.com/miigo/worker/internal/channel"
-	interfaces "miinto.com/miigo/worker/pkg"
+	miigo_channel "github.com/miinto/miigo-worker/internal/channel"
+	interfaces "github.com/miinto/miigo-worker/pkg"
 	"reflect"
 	"strconv"
 	"testing"

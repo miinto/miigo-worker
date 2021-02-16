@@ -3,9 +3,9 @@ package worker
 import (
 	"errors"
 	"math/rand"
-	"miinto.com/miigo/worker/internal/channel"
-	"miinto.com/miigo/worker/internal/process"
-	"miinto.com/miigo/worker/pkg"
+	"github.com/miinto/miigo-worker/internal/channel"
+	"github.com/miinto/miigo-worker/internal/process"
+	"github.com/miinto/miigo-worker/pkg"
 	"time"
 )
 

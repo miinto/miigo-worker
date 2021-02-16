@@ -1,7 +1,7 @@
 package handler
 
 import (
-	interfaces "miinto.com/miigo/worker/pkg"
+	interfaces "github.com/miinto/miigo-worker/pkg"
 	"time"
 )
 

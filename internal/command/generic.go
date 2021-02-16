@@ -3,7 +3,7 @@ package command
 import (
 	"bytes"
 	"encoding/json"
-	interfaces "miinto.com/miigo/worker/pkg"
+	interfaces "github.com/miinto/miigo-worker/pkg"
 )
 
 type genericCommand struct {

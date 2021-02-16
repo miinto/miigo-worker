@@ -1,6 +1,6 @@
 package channel
 
-import interfaces "miinto.com/miigo/worker/pkg"
+import interfaces "github.com/miinto/miigo-worker/pkg"
 
 type ChannelEntry struct {
 	QueueName string

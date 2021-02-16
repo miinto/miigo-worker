@@ -3,9 +3,9 @@ package main
 import (
 	"fmt"
 	"github.com/streadway/amqp"
-	"miinto.com/miigo/worker"
-	"miinto.com/miigo/worker/examples/single_mode/internal/handler"
-	"miinto.com/miigo/worker/examples/single_mode/internal/logger"
+	"github.com/miinto/miigo-worker"
+	"github.com/miinto/miigo-worker/examples/single_mode/internal/handler"
+	"github.com/miinto/miigo-worker/examples/single_mode/internal/logger"
 )
 
 func main() {
