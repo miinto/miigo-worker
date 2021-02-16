@@ -1,4 +1,4 @@
-module miinto.com/miigo/worker
+module github.com/miinto/miigo-worker
 
 go 1.15
 
